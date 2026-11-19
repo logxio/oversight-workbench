@@ -661,7 +661,7 @@ function renderRoof(){
     const yy=yA+45+i*22;
     g.append('path').attr('d',`M${x(VL.cycles)},${yA+10}V${yy}H${X}`).attr('fill','none').attr('stroke',C.stone).attr('stroke-width',1.1);
     g.append('circle').attr('cx',X).attr('cy',yy).attr('r',4).attr('fill',C.card).attr('stroke',C.petrol).attr('stroke-width',1.6);
-    txt(g,a.key==='cache'?X-8:X+8,yy,`${fmt(a.off_cycles)} no ${a.key==='cache'?'cache':a.key==='xor'?'XOR':'WAR'}`,{anchor:a.key==='cache'?'end':'start',size:11.5,fill:C.petrol,base:'central'});});
+    txt(g,a.key==='cache'?X-8:X+8,a.key==='cache'?yy-10:yy,`${fmt(a.off_cycles)} no ${a.key==='cache'?'cache':a.key==='xor'?'XOR':'WAR'}`,{anchor:a.key==='cache'?'end':'start',size:11.5,fill:C.petrol,base:'central'});});
   if(S.abl)svg.append('circle').attr('cx',x(VL.cycles)).attr('cy',yA).attr('r',8).attr('fill','none').attr('stroke',C.petrol).attr('stroke-dasharray','2 2');
   const yb=58;
   svg.append('path').attr('d',`M${x(VL.load_bound)},${yb}H${x(c)}M${x(c)},${yb-5}V${yb+5}`).attr('fill','none').attr('stroke',C.terra).attr('stroke-width',1.6);
