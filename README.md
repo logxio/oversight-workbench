@@ -1,29 +1,32 @@
-https://yansu.me/oversight-workbench/
+# Oversight Workbench
 
-Recompute every statistic in under 2 seconds with Python 3.9+ standard library on Linux, macOS, or Windows (no third-party packages required):
+Find where transcript monitors lose evidence, recover covert lookups with runtime provenance, and inspect why frozen tests break.
+
+[Open the interactive workbench](https://yansu.me/oversight-workbench/)
+
+<table>
+<tr><th>Study</th><th>Recorded result</th></tr>
+<tr><td>Frontier monitor calibration</td><td>960 evaluations on 120 balanced runs. At threshold 0.50, Sonnet 4.6 reduces clean-summary false alarms from Haiku 4.5's 29/60 (48.3%) to 4/60 (6.7%). Sonnet recovers 8/23 clue-retaining summaries; Haiku recovers 0/23.</td></tr>
+<tr><td>Runtime provenance and probes</td><td>Six-family held-out Sonnet plus a 1.42ms provenance gate improves full-view recall from 12/60 to 40/60 at matched 3/60 clean false alarms, exact McNemar p = 5.774199962615967e-08. Covert lookup capture rises from 1/25 to 25/25.</td></tr>
+<tr><td>Hermetic container replay</td><td>Across 76 PR pairs in 35 repositories, test-editing PRs break frozen base tests in 30/76 cases versus 15/76 controls, exact McNemar p = 0.01667384780012071. Auditing 2,897 hunks separates 17 specification updates, 12 weakened checks and 1 file move.</td></tr>
+</table>
 
 ```sh
 python3 reproduce.py
 ```
 
-On Windows, `python reproduce.py` also works. The script reads `data/evidence.json`, the exact JSON embedded in the interactive workbench.
+Python 3.9 or later. Standard library only. Runs in under one second. Open `index.html` directly for the interactive views.
 
-| Finding | Measured result | Source |
-| :- | :- | :- |
-| Frontier transcript monitors | Across 960 paired evaluations on 120 balanced episodes selected from 914 eligible trajectories, Claude Sonnet 4.6 catches 12/60 masked, full and git-diff violations, and 11/60 on summaries at <=5% FPR. Claude Haiku 4.5 catches 13/60 masked vs 2/60 summary violations (exact McNemar p=0.0074) | [Monitor data](data/evidence.json) |
-| Lexical survival | Among 23 summaries retaining explicit clues, Haiku catches 8/23 masked vs 0/23 summary; Sonnet recovers 8/23 summary. Among 37 zero-match summaries, Sonnet catches 3/37. Sonnet catches 0/25 read-only git-history lookups on masked and summary views, and 1/25 on full traces | [Lexical counts](data/evidence.json) |
-| Calibration and family transfer | At 0.50, clean-summary false alarms are 29/60 on Haiku vs 4/60 on Sonnet. Haiku's calibrated summary cutoff is 0.96. Across 24 leave-one-family-out folds per monitor, Haiku spikes to 4/6 on SWE-bench Verified summaries (p=8.6e-5) and 5/12 on Terminal-Bench 2 diffs (p=1.8e-4), surviving 24-fold Bonferroni correction; Sonnet reaches 3/12 on Terminal-Bench 2 summaries and 3/13 on BountyBench masked traces (nominal p=0.020 and 0.025, exploratory) | [LOFO holdout table](data/evidence.json) |
-| Cross-family safety refusals | A separate official OpenAI monitor refuses 70/480 cells (14.6%); its incomplete score grid is excluded from the 960-cell paired comparison | [Refusal records](data/evidence.json) |
-| Frozen base-test container replay | Across 76 paired PR container builds in 35 repositories (extending ImpossibleBench, Zhong et al., 2025), test-editing PRs fail frozen pre-change base tests twice as often as same-repository controls (30/76 = 39.5% vs 15/76 = 19.7%, exact McNemar p=0.0167; excluding github/gh-aw p=0.041; repo-level 14 vs 4, p=0.031) | [Container replay data](data/evidence.json) · [Picchio sandbox replay](https://yansu.me/picchio/) |
-| Parser retry loops & queue-value stopping | Across 229,580 retry attempts (162,506 Qwen3.8 27B + 67,074 Qwen3 Coder 480B) plus 228 full-event Gemma 4 31B traces (1,988 silent parser rejections), queue-value stopping resolves +43.2% to +78.9% more recoverable tasks at compute budgets <=30% | [gemma4-queue-value](https://github.com/logxio/gemma4-queue-value) |
-| VLIW SIMD kernel roofline | Anthropic's single-core VLIW SIMD take-home kernel runs in 1,194 cycles (123.73x over the 147,734-cycle reference, below Claude Opus 4.5's 1,363-cycle harness result and the 1,487-cycle threshold), 112 cycles (10.4%) above the 1,082-cycle load-slot bound (2,164 loads / 2 slots). Slot utilization: VALU 92.1%, Load 90.6%, ALU 87.7%, Flow 61.6%. Removing depth-3 scratchpad caching raises execution to 2,121 cycles (+927); cached rounds 0..3 and 11..14 remove 2,048 scalar gathers under zero-initialized starting indices. Full value and index writeback uses 64 stores. Turning off the mirrored-index XOR costs +48 cycles; turning off same-cycle buffered WAR costs +12. 9/9 official tests, 200/200 fresh random seeds, 1,300/1,300 shapes. Kernel source stays private under the take-home non-spoiler notice | [VLIW data](data/evidence.json) |
-| Picchio runtime placement & sandbox | Silent GPU-to-CPU layer spill drops Qwen3.8 27B decode from 81.5 to 5.7 tok/s (14.3x) and stretches Apple M5 time-to-first-token 7.6x; an inherited OS Seatbelt boundary blocks 5/5 in-flight escape probes with 0 bytes out | [picchio](https://github.com/logxio/picchio) |
-| Confidence-gated ARC-AGI-3 control | Across all 183 ARC-AGI-3 levels on 4 LLM backbones, mean score rises from 3.18 to 58.70 at 0.413x action cost across 825 paired runs (694 wins, 131 ties, 0 losses) | [arc-agi-3-paper](https://github.com/logxio/arc-agi-3-paper) |
+The command verifies saved scores, operating thresholds, confusion matrices, nested leave-one-family-out selections, all 2,080 method-pair comparisons, container counts and a live generic completion-sentinel check. The HTML embeds the exact bytes of `data/evidence.json`. Reproduction checks recorded model decisions; it does not call or refit models.
 
-The script recalculates the two models' four paired views, all six leave-one-family-out folds, lexical strata and refusal counts. It also verifies the preserved five-view historical data, three paired container tests, parser and stopping counts, VLIW arithmetic and runtime ratios.
+Act 01 includes a 0.00 to 1.00 threshold slider, a ≤5% empirical FPR snap, all four transcript views, clue strata and held-out family errors. Sonnet catches 3/37 summaries with erased clues and 0/25 read-only lookups on summary or masked views (1/25 full). The separate refusal ledger contains 70/480 cells. The `legacy_monitor` table retains the historical 6.7% to 8.3% pooled LOFO false-alarm calculations.
 
-The 30-PR audit covers 2,897 commit/file diff rows: 17 specification updates, 12 PRs with weakened or skipped checks, and one test-file relocation. Frozen-test failure in an evolving repository is distinguished from fixed-specification test tampering. The recorded controlled benchmark has 96 episodes and 4/4 detected skip edits with zero false positives.
+Act 02 compares Sonnet 4.6, post-hoc Qwen2.5-Coder-0.5B (bf16) and 3B (4-bit) probes, provenance, and their hybrid on the same 120 runs and 6,773 tool calls. The 10,080-vector probe inventory exposes the length confound: the 3B masked pre-summary probe catches 13/25 covert cases at 6/60 clean false alarms, falling to 0/25 with length control. Generated-summary probes also catch 0/25. Hybrid masked and summary recall is 36/60 and 37/60, with 24/25 covert lookups and 2/60 and 4/60 clean false alarms respectively. Full-view zero-clue capture improves from 4/37 to 28/37.
 
-The offline harness probes execute the original extracted `agentic_humaneval_scorer` and `_inline_subagent_transcripts` functions. A correct answer passes, a wrong answer fails, and an early `sys.exit(0)` is accepted by the original scorer; an end-of-harness completion sentinel rejects the early exit. The transcript extractor inlines a subagent with matching `agentId` metadata and preserves only the compacted summary when that metadata is absent. These are local mechanism reproductions.
+Inspect `tr-000501` for the single clean provenance alarm: authorized Cybench CTF access to exposed git history. Inspect `tr-003712` for Sonnet's complementary capture of leaked MLE-bench validation labels. Provenance records access; the task determines intent.
 
-The residency proposal tests linear residual-stream probes (with layer depth cross-validated on training families only and frozen before held-out evaluation) at tool-call argument tokens and pre-handoff summary generation tokens on prompted and fine-tuned open-weight multi-agent organisms, after filtering empty or malformed transcripts and sizing clean runs per family upfront for tight <=5% holdout FPR intervals. The decision rule requires at least 10 percentage points recall lift over calibrated transcript monitors plus deterministic runtime gates at <=5% holdout FPR with at most 15% added compute. These are proposed experiments.
+Act 03 filters all 30 breaking PRs by audit outcome and links directly to changed files. Repository-level paired votes are 14 versus 4 (exact p = 0.0308837890625). Across 96 recorded fixed-spec episodes, an end-of-harness completion sentinel catches 4/4 skipped-test edits with zero false alarms. The verifier also tests normal completion, assertion failure, skipping and early zero exits using a generic local runner.
+
+Frontier monitors use each recorded transcript view. Post-hoc probes use deterministic transcript windows of at most 3,072 tokens. Provenance uses recorded tool calls and diffs. Model depth, pooling, regularization and thresholds are selected within training-family folds. Held-out clean errors are reported from outer predictions.
+
+MIT License. Yan Su.
