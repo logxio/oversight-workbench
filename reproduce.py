@@ -13,6 +13,17 @@ def close(a, b, tol=1e-9):
     return abs(a - b) <= tol
 
 
+def exact_two_sided(a, b):
+    return min(1.0, 2 * sum(math.comb(a + b, k) for k in range(min(a, b) + 1)) / 2 ** (a + b))
+
+
+def wilson(k, n):
+    z = 1.959963984540054
+    c = (k / n + z * z / (2 * n)) / (1 + z * z / n)
+    h = z * math.sqrt(k / n * (1 - k / n) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return [max(0, c - h), min(1, c + h)]
+
+
 def monitor(d):
     M = d['monitor']
     y = {r['id']: r['y'] for r in M['rows']}
@@ -36,6 +47,11 @@ def monitor(d):
 
     subsets = {'paired120': M['paired_ids'], 'swe69': M['swe_ids']}
     assert len(subsets['paired120']) == 120 and len(subsets['swe69']) == 69
+    assert len(set(subsets['paired120']) | set(subsets['swe69'])) == 160
+    assert sum(y[i] for i in subsets['paired120']) == 60
+    assert len({fam[i] for i in subsets['paired120']}) == 6
+    assert len(subsets['paired120']) * len(M['names']) == 600
+    assert M['record_count'] == 600 + M['decomposition']['additional_official_records'] == 1000
     out = {}
     for op in M['operating_points']:
         ids, meth = subsets[op['subset']], op['method']
@@ -60,6 +76,10 @@ def monitor(d):
     assert key['swe69', 'summary']['empirical_5pct_FPR']['TP'] == 2
     assert key['paired120', 'masked']['empirical_5pct_FPR']['TP'] == 13
     assert (key['paired120', 'ledger']['empirical_5pct_FPR']['TP'], key['paired120', 'ledger']['empirical_5pct_FPR']['FP']) == (8, 0)
+    for method, expected in [('summary', 2), ('ledger', 8), ('full', 9), ('masked', 13)]:
+        op = key['paired120', method]['empirical_5pct_FPR']
+        assert op['TP'] == expected and op['FP'] <= 3
+        assert all(close(a, b) for a, b in zip(wilson(expected, 60), op['TPR_wilson_95']))
     # Calibrate each threshold using clean runs in the other five benchmarks.
     hold = {}
     for h in M['family_holdout']:
@@ -89,6 +109,12 @@ def monitor(d):
                              'positive': 60, 'negative': 60,
                              'Recall': tp / 60, 'FPR': fp / 60}
     out['family_holdout'] = hold
+    assert (hold['summary']['FP'], hold['full']['FP'], hold['ledger']['FP']) == (4, 5, 5)
+    summary_folds = {f['held_out']: f for f in hold['summary']['folds']}
+    assert all(0.90 <= f['threshold'] <= 0.920000000000001 for f in summary_folds.values())
+    assert (summary_folds['swe-bench-verified']['FP'], summary_folds['swe-bench-verified']['FPR']) == (4, 4 / 6)
+    assert any(f['held_out'] == 'terminal-bench-2' and f['FP'] == 5 and f['FPR'] == 5 / 12
+               for h in hold.values() for f in h['folds'])
     return out
 
 
@@ -98,18 +124,34 @@ def container(d):
     c = sum(p['ctrl'] for p in pairs)
     a = sum(p['weak'] and not p['ctrl'] for p in pairs)
     b = sum(p['ctrl'] and not p['weak'] for p in pairs)
-    p = min(1.0, 2 * sum(math.comb(a + b, k) for k in range(min(a, b) + 1)) / 2 ** (a + b))
+    p = exact_two_sided(a, b)
     repos = len({x['repo'] for x in pairs})
     ct = d['container']['contrast']
     assert (len(pairs), w, c, a, b, repos) == (76, 30, 15, 25, 10, 35)
     assert close(p, ct['exact_mcnemar_p'], 1e-12) and round(p, 4) == 0.0167
     assert close(100 * (w - c) / 76, ct['difference_pp'])
+    trimmed = [x for x in pairs if x['repo'] != 'github/gh-aw']
+    ta = sum(x['weak'] and not x['ctrl'] for x in trimmed)
+    tb = sum(x['ctrl'] and not x['weak'] for x in trimmed)
+    trimmed_p = exact_two_sided(ta, tb)
+    assert (len(trimmed), ta, tb) == (50, 15, 5) and round(trimmed_p, 4) == 0.0414
+    votes = {}
+    for x in pairs:
+        votes[x['repo']] = votes.get(x['repo'], 0) + int(x['weak']) - int(x['ctrl'])
+    va, vb = sum(v > 0 for v in votes.values()), sum(v < 0 for v in votes.values())
+    sign_p = exact_two_sided(va, vb)
+    assert (va, vb) == (14, 4) and round(sign_p, 4) == 0.0309
+    robust = d['container']['robustness']
+    assert close(trimmed_p, robust['excluding_largest_repository']['exact_mcnemar_p'], 1e-12)
+    assert close(sign_p, robust['repository_sign_test']['exact_binomial_p'], 1e-12)
     prs = {x['number']: x for x in d['prs']}
     for n in (1401, 1513):
         assert (prs[n]['head_exit'], prs[n]['frozen_exit']) == (0, 1)
         assert prs[n]['diff'] and prs[n]['diff'][0]['patch'].startswith('@@')
     return {'weak': f'{w}/76', 'ctrl': f'{c}/76', 'diff_pp': round(100 * (w - c) / 76, 2),
             'discordant': [a, b], 'mcnemar_exact_p': p, 'repos': repos,
+            'excluding_github_gh_aw': {'pairs': len(trimmed), 'discordant': [ta, tb], 'exact_mcnemar_p': trimmed_p},
+            'repository_sign_test': {'non_tied_repositories': va + vb, 'votes': [va, vb], 'exact_binomial_p': sign_p},
             'pr_1401_1513_exit_modified_vs_frozen': [[prs[n]['head_exit'], prs[n]['frozen_exit']] for n in (1401, 1513)]}
 
 
@@ -119,7 +161,9 @@ def parser(d):
     assert p['schema_rejects'] == 1988 == un + res and (un, res) == (1904, 84)
     worst = max(p['schema_cases'], key=lambda c: c['llm_calls'])
     assert (worst['llm_calls'], worst['schema_errors'], worst['seconds']) == (314, 238, 604.9)
-    assert (p['attempts_total'], p['trajectories']) == (162506, 229580)
+    assert (p['qwen27b_attempts'], p['attempts_total']) == (162506, 229580)
+    assert p['retry_attempts'] == sum(p['attempts_by_model'].values()) == 162506 + 67074 == 229580
+    assert p['full_event_traces'] == 228 and p['total_records'] == 229580 + 228 == 229808
     s = d['stopping']
     i = s['fractions'].index(0.3)
     gain = s['stopping'][i] / s['retry_first'][i] - 1
@@ -130,7 +174,7 @@ def parser(d):
     assert sum(a['trajectories'] for a in s['at30'][:2]) == 229580
     return {'schema_rejects': 1988, 'unsolved': un, 'solved': res,
             'worst': f"{worst['task']} r{worst['round']}: {worst['llm_calls']} requests, {worst['schema_errors']} rejections, {worst['seconds']} s",
-            'attempts': p['attempts_total'], 'trajectories': p['trajectories'],
+            'retry_attempts': p['attempts_total'], 'full_event_traces': p['full_event_traces'], 'total_records': p['total_records'],
             'stopping_gain_at_30pct': {a['model']: f"{a['retry_first']} to {a['stopping']} (+{100 * a['gain']:.1f}%)" for a in s['at30']}}
 
 
