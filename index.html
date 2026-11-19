@@ -42,6 +42,11 @@ button{font:inherit;color:inherit}
 .tele b.flash{animation:flash .45s cubic-bezier(.2,.8,.2,1)}
 @keyframes flash{0%{opacity:.3}100%{opacity:1}}
 
+/* Roofline controls occupy their own row at the supported minimum width. */
+#c-roof .hd{flex-wrap:wrap}
+#c-roof #abl{width:100%;justify-content:space-between;gap:6px}
+#c-roof .sw{font-size:11px;padding:5px 7px;gap:6px}
+
 /* stage */
 .stage{flex:1;position:relative;min-height:690px}
 .view{position:absolute;inset:0;padding:14px 22px;display:grid;gap:14px;grid-template-columns:repeat(12,minmax(0,1fr));opacity:0;visibility:hidden;transform:translateY(6px);transition:opacity .28s,transform .4s cubic-bezier(.2,.8,.2,1),visibility 0s .28s}
@@ -653,10 +658,10 @@ function renderRoof(){
     txt(g,0,-16,fmt(r.cycles),{anchor:'middle',size:14,w:600,fill:C.ink2});txt(g,0,25,bar?'bar':'Opus 4.5',{anchor:'middle',size:11,fill:C.ink2});});
   ABL.slice().sort((a,b)=>a.off_cycles-b.off_cycles).forEach((a,i)=>{const on=S.abl===a.key,X=x(a.off_cycles),g=svg.append('g').attr('opacity',on?0:1)
       .attr('data-tip',`${esc(a.label)} off: ${fmt(a.off_cycles)} cycles (+${a.off_cycles-VL.cycles})`);
-    const yy=yA+26+i*22;
+    const yy=yA+45+i*22;
     g.append('path').attr('d',`M${x(VL.cycles)},${yA+10}V${yy}H${X}`).attr('fill','none').attr('stroke',C.stone).attr('stroke-width',1.1);
     g.append('circle').attr('cx',X).attr('cy',yy).attr('r',4).attr('fill',C.card).attr('stroke',C.petrol).attr('stroke-width',1.6);
-    txt(g,X+8,yy,`${fmt(a.off_cycles)} no ${a.key==='cache'?'cache':a.key==='xor'?'XOR':'WAR'}`,{size:11.5,fill:C.petrol,base:'central'});});
+    txt(g,a.key==='cache'?X-8:X+8,yy,`${fmt(a.off_cycles)} no ${a.key==='cache'?'cache':a.key==='xor'?'XOR':'WAR'}`,{anchor:a.key==='cache'?'end':'start',size:11.5,fill:C.petrol,base:'central'});});
   if(S.abl)svg.append('circle').attr('cx',x(VL.cycles)).attr('cy',yA).attr('r',8).attr('fill','none').attr('stroke',C.petrol).attr('stroke-dasharray','2 2');
   const yb=58;
   svg.append('path').attr('d',`M${x(VL.load_bound)},${yb}H${x(c)}M${x(c)},${yb-5}V${yb+5}`).attr('fill','none').attr('stroke',C.terra).attr('stroke-width',1.6);
